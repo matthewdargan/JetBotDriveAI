@@ -19,11 +19,13 @@ class Collector:
         """
         self.robot = Robot()
 
-        # TODO: figure out way to set capture width and height here
+        # TODO: Find way to network controller inputs over to JetBot during data collection in real-time
         self.controller = widgets.Controller(index=1)
 
         self.controls: Dict[int, Tuple[float, float]] = {}
         self.controls_pickle_filename: str = controls_pickle_filename
+
+        # TODO: Figure out way to set capture width and height here
         self.camera = Camera.instance()
         self.frames_directory: str = frames_directory
         self.frame_index: int = 0
