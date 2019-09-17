@@ -1,5 +1,5 @@
+"""Interface to get controller inputs to send to JetBot."""
 import pygame
-from time import sleep
 
 JOYSTICK_DZ_THRESH = 0.15
 PRECISION = 3
@@ -8,6 +8,7 @@ TICKS_PER_SECOND = 30
 
 class Controller:
     def __init__(self):
+        """Initializes controller state."""
         pygame.init()
         pygame.joystick.init()
         self.status = {}
@@ -16,6 +17,7 @@ class Controller:
         self._joystick.init()
 
     def monitor_status(self):
+        """Monitors the status of controller inputs and sets deadzones."""
         while True:
             # Event object must be acquired before data from axes can be read
             for event in pygame.event.get():
@@ -23,6 +25,7 @@ class Controller:
                     # Handle left joystick axes positions: right and down are positive
                     self.status['ls_x'] = round(self._joystick.get_axis(0), PRECISION)
                     self.status['ls_y'] = round(self._joystick.get_axis(1), PRECISION)
+
                     # Handle right trigger position, normalize value
                     self.status['right_trigger'] = round((self._joystick.get_axis(5) + 1.0) / 2.0, PRECISION)
 
@@ -33,6 +36,7 @@ class Controller:
                 self.status['ls_y'] = 0.0
 
             print(self.status)
+
             # Slow loop down to a maximum amount of ticks per second
             self.clock.tick(TICKS_PER_SECOND)
 
