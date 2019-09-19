@@ -1,9 +1,14 @@
 import pygame
 from time import sleep
+from socket import socket, AF_INET, SOCK_DGRAM
+from pickle import dumps
 
 JOYSTICK_DZ_THRESH = 0.15
 PRECISION = 3
 TICKS_PER_SECOND = 30
+
+UDP_IP = '192.168.0.14'
+UDP_PORT = 5005
 
 
 class Controller:
@@ -14,6 +19,10 @@ class Controller:
         self.clock = pygame.time.Clock()
         self._joystick: pygame.joystick.JoystickType = pygame.joystick.Joystick(0)
         self._joystick.init()
+
+        # Set up a socket UDP connection
+        self.sock = socket(AF_INET, SOCK_DGRAM)
+        print(f'UDP socket open on IP {UDP_IP}:{UDP_PORT} for controller data')
 
     def monitor_status(self):
         while True:
@@ -33,6 +42,9 @@ class Controller:
                 self.status['ls_y'] = 0.0
 
             print(self.status)
+            # Send the controller status over the socket
+            self.sock.send(dumps(self.status))
+
             # Slow loop down to a maximum amount of ticks per second
             self.clock.tick(TICKS_PER_SECOND)
 
