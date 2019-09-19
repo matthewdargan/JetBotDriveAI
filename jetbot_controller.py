@@ -5,13 +5,13 @@ from argparse import ArgumentParser
 from data_collection import Collector
 
 # Directory for saving image data in
-frames_directory: str = 'frames'
+FRAMES_DIRECTORY: str = 'frames'
 
 # Constant for data collection fps and controls per second
-ticks_per_second = 10
+TICKS_PER_SECOND: int = 10
 
 # Filename for the pickle file for storing human-input controls
-controls_pickle_filename = 'controlsPickle'
+CONTROLS_PICKLE_FILENAME: str = 'controlsPickle'
 
 if __name__ == "__main__":
     # Parse arguments for the mode jetBot should start in (either data collection or model running)
@@ -20,8 +20,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if 'collect' in args.mode:
-        os.makedirs(frames_directory, exist_ok=True)
-        collector = Collector(frames_directory, ticks_per_second, controls_pickle_filename)
+        os.makedirs(FRAMES_DIRECTORY, exist_ok=True)
+        collector = Collector(FRAMES_DIRECTORY, TICKS_PER_SECOND, CONTROLS_PICKLE_FILENAME)
         collector.run_data_collection()
-    else:
+    elif 'train' in args.mode:
         pass
+    else:
+        print('Invalid mode')

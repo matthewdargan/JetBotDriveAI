@@ -4,9 +4,8 @@ import pickle
 import time
 from typing import Dict, Tuple
 
-import ipywidgets.widgets as widgets
 from jetbot import Camera, Robot
-from util.controls import get_controls
+from util.controller import Controller
 
 
 class Collector:
@@ -20,7 +19,7 @@ class Collector:
         self.robot = Robot()
 
         # TODO: Find way to network controller inputs over to JetBot during data collection in real-time
-        self.controller = widgets.Controller(index=1)
+        self.controller: Controller = Controller()
 
         self.controls: Dict[int, Tuple[float, float]] = {}
         self.controls_pickle_filename: str = controls_pickle_filename
@@ -56,6 +55,7 @@ class Collector:
 
     def save_controls(self):
         """Saves controls from the human-input controller as a left-motor vector and a right-motor vector."""
+        # TODO: Receive controller inputs from the network here
         self.controls[self.frame_index] = get_controls(self.controller)
 
     def pause(self):
