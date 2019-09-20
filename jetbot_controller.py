@@ -8,7 +8,7 @@ from data_collection import Collector
 FRAMES_DIRECTORY: str = 'frames'
 
 # Constant for data collection fps and controls per second
-TICKS_PER_SECOND: int = 10
+TICKS_PER_SECOND: int = 30
 
 # Filename for the pickle file for storing human-input controls
 CONTROLS_PICKLE_FILENAME: str = 'controlsPickle'

@@ -2,10 +2,14 @@
 import os
 import pickle
 import time
+from socket import socket, AF_INET, SOCK_DGRAM
 from typing import Dict, Tuple
 
+import traitlets
 from jetbot import Camera, Robot
-from util.controller import Controller
+
+UDP_IP = '192.168.0.14'
+UDP_PORT = 5005
 
 
 class Collector:
@@ -13,22 +17,24 @@ class Collector:
         """
         Initializes data collection state.
         :param frames_directory: directory to save frames into
-        :param ticks_per_second: constant for data collection fps and controls per second
+        :param ticks_per_second: constant for data collection fps
         :param controls_pickle_filename: filename for the pickle file for storing human-input controls
         """
         self.robot = Robot()
-
-        # TODO: Find way to network controller inputs over to JetBot during data collection in real-time
-        self.controller: Controller = Controller()
-
-        self.controls: Dict[int, Tuple[float, float]] = {}
+        self.controls: Dict[int, Dict[str, float]] = {}
+        self.current_controls: Tuple[float, float, float] = (0, 0, 0)
         self.controls_pickle_filename: str = controls_pickle_filename
-
-        # TODO: Figure out way to set capture width and height here
         self.camera = Camera.instance()
+
+        # Reset camera width/height to 25% of the capture width/height
+        self.camera.width = 820
+        self.camera.height = 616
+
         self.frames_directory: str = frames_directory
         self.frame_index: int = 0
         self.ticks_per_second: int = ticks_per_second
+        self.sock = socket(AF_INET, SOCK_DGRAM)
+        print(f'UDP socket open on IP {UDP_IP}:{UDP_PORT} for controller data')
 
     def run_data_collection(self):
         """Runs data collection for controller inputs and camera frames until pause."""
@@ -55,8 +61,10 @@ class Collector:
 
     def save_controls(self):
         """Saves controls from the human-input controller as a left-motor vector and a right-motor vector."""
-        # TODO: Receive controller inputs from the network here
-        self.controls[self.frame_index] = get_controls(self.controller)
+        data, _ = self.sock.recvfrom(1024)
+        self.controls[self.frame_index] = pickle.loads(data)
+        self.current_controls = (self.controls[self.frame_index]['ls_x'], self.controls[self.frame_index]['ls_y'],
+                                 self.controls[self.frame_index]['right_trigger'])
 
     def pause(self):
         """Pauses data collection and pickles controls."""
@@ -73,5 +81,10 @@ class Collector:
                     self.controls = pickle.load(f)
                     self.frame_index = self.controls.keys().sort()[-1] + 1
                     print('Resuming data collection')
+
+                    left_link = traitlets.dlink((self.current_controls[0], 'value'), (self.robot.left_motor, 'value'),
+                                                transform=lambda x: -x * self.current_controls[2])
+                    right_link = traitlets.dlink((self.current_controls[1], 'value'), (self.robot.right_motor, 'value'),
+                                                 transform=lambda x: -x * self.current_controls[2])
                 except FileNotFoundError:
                     print(f"{self.controls_pickle_filename} not found")
