@@ -1,32 +1,30 @@
 """Interface to get controller inputs to send to JetBot."""
 from pickle import dumps
 from socket import socket, AF_INET, SOCK_DGRAM
+from typing import Dict
 
 import pygame
 
-JOYSTICK_DZ_THRESH = 0.15
-PRECISION = 3
+TICKS_PER_SECOND: int = 30
+JOYSTICK_DZ_THRESH: float = 0.15
+PRECISION: int = 3
 
-UDP_IP = '192.168.0.14'
-UDP_PORT = 5005
+UDP_IP: str = '192.168.0.14'
+UDP_PORT: int = 5005
 
 
 class Controller:
-    def __init__(self, ticks_per_second):
-        """
-        Initializes controller state.
-        :param ticks_per_second: constant for controls per second
-        """
+    def __init__(self):
+        """Initializes controller state."""
         pygame.init()
         pygame.joystick.init()
-        self.status = {}
-        self.clock = pygame.time.Clock()
+        self.status: Dict[str, float] = {}
+        self.clock: pygame.time.Clock = pygame.time.Clock()
         self._joystick: pygame.joystick.JoystickType = pygame.joystick.Joystick(0)
         self._joystick.init()
-        self.ticks_per_second: int = ticks_per_second
 
         # Set up a socket UDP connection
-        self.sock = socket(AF_INET, SOCK_DGRAM)
+        self.sock: socket = socket(AF_INET, SOCK_DGRAM)
         print(f'UDP socket open on IP {UDP_IP}:{UDP_PORT} for controller data')
 
     def monitor_status(self):
@@ -49,13 +47,14 @@ class Controller:
                 self.status['ls_y'] = 0.0
 
             print(self.status)
+
             # Send the controller status over the socket
             self.sock.send(dumps(self.status))
 
             # Slow loop down to a maximum amount of ticks per second
-            self.clock.tick(self.ticks_per_second)
+            self.clock.tick(TICKS_PER_SECOND)
 
 
 if __name__ == '__main__':
-    controller = Controller(ticks_per_second=30)
+    controller = Controller()
     controller.monitor_status()

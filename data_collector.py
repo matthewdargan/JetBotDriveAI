@@ -2,14 +2,20 @@
 import os
 import pickle
 import time
+from argparse import ArgumentParser
 from socket import socket, AF_INET, SOCK_DGRAM
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 import traitlets
 from jetbot import Camera, Robot
 
-UDP_IP = '192.168.0.14'
-UDP_PORT = 5005
+FRAMES_DIRECTORY: str = 'frames'
+CONTROLS_PICKLE_FILENAME: str = 'controlsPickle'
+
+TICKS_PER_SECOND: int = 10
+
+UDP_IP: str = '192.168.0.14'
+UDP_PORT: int = 5005
 
 
 class Collector:
@@ -20,11 +26,11 @@ class Collector:
         :param ticks_per_second: constant for data collection fps
         :param controls_pickle_filename: filename for the pickle file for storing human-input controls
         """
-        self.robot = Robot()
+        self.robot: Robot = Robot()
         self.controls: Dict[int, Dict[str, float]] = {}
         self.current_controls: Tuple[float, float, float] = (0, 0, 0)
         self.controls_pickle_filename: str = controls_pickle_filename
-        self.camera = Camera.instance()
+        self.camera: Camera = Camera.instance()
 
         # Reset camera width/height to 25% of the capture width/height
         self.camera.width = 820
@@ -33,13 +39,16 @@ class Collector:
         self.frames_directory: str = frames_directory
         self.frame_index: int = 0
         self.ticks_per_second: int = ticks_per_second
-        self.sock = socket(AF_INET, SOCK_DGRAM)
+        self.sock: socket = socket(AF_INET, SOCK_DGRAM)
         print(f'UDP socket open on IP {UDP_IP}:{UDP_PORT} for controller data')
 
-    def run_data_collection(self):
-        """Runs data collection for controller inputs and camera frames until pause."""
+    def run_data_collection(self, last_frame: Union[int, None] = None):
+        """
+        Runs data collection for controller inputs and camera frames until pause.
+        :param last_frame: last frame that data was good for, delete all frames after this frame
+        """
         print('Starting data collection')
-        self.resume()
+        self.resume(last_frame)
 
         while True:
             try:
@@ -73,18 +82,56 @@ class Collector:
 
         print('Pausing data collection')
 
-    def resume(self):
-        """Unpickles controls and resumes data collection."""
+    def resume(self, last_frame: Union[int, None]):
+        """
+        Unpickles controls and resumes data collection.
+        :param last_frame: last frame that data was good for, delete all frames after this frame
+        """
         if os.path.isfile(self.controls_pickle_filename):
             with open(self.controls_pickle_filename, 'rb') as f:
                 try:
                     self.controls = pickle.load(f)
+
+                    # Delete all entries from the last frame onwards
+                    for key in self.controls.keys():
+                        if key > last_frame:
+                            del self.controls[key]
+
+                    # Delete all images from the last frame onwards
+                    last_frame_name: str = f"{last_frame}.png"
+                    for file in os.listdir(FRAMES_DIRECTORY):
+                        if file > last_frame_name:
+                            os.remove(file)
+
                     self.frame_index = self.controls.keys().sort()[-1] + 1
                     print('Resuming data collection')
 
-                    left_link = traitlets.dlink((self.current_controls[0], 'value'), (self.robot.left_motor, 'value'),
-                                                transform=lambda x: -x * self.current_controls[2])
-                    right_link = traitlets.dlink((self.current_controls[1], 'value'), (self.robot.right_motor, 'value'),
-                                                 transform=lambda x: -x * self.current_controls[2])
+                    traitlets.dlink((self.current_controls[0], 'value'), (self.robot.left_motor, 'value'),
+                                    transform=lambda x: -x * self.current_controls[2])
+                    traitlets.dlink((self.current_controls[1], 'value'), (self.robot.right_motor, 'value'),
+                                    transform=lambda x: -x * self.current_controls[2])
                 except FileNotFoundError:
                     print(f"{self.controls_pickle_filename} not found")
+
+
+if __name__ == "__main__":
+    # Parse arguments for the mode jetBot should start in (either data collection or model running)
+    parser = ArgumentParser('jetbot_drive_ai')
+    parser.add_argument('-m', type=str, help='Mode to start the jetbot in', dest='mode', required=True)
+    parser.add_argument(
+        '-f', type=int, help='Frame to delete onwards in case of a mistake', dest='frame', required=False
+    )
+    args = parser.parse_args()
+
+    collector = Collector(FRAMES_DIRECTORY, TICKS_PER_SECOND, CONTROLS_PICKLE_FILENAME)
+
+    # New dataset
+    if 'n' in args.mode:
+        os.makedirs(FRAMES_DIRECTORY, exist_ok=True)
+        collector.run_data_collection()
+    # Resume on a current dataset in case bad inputs were made
+    elif 'r' in args.mode and args.frame:
+        os.makedirs(FRAMES_DIRECTORY, exist_ok=True)
+        collector.run_data_collection(args.frame)
+    else:
+        print('Invalid mode')
