@@ -14,7 +14,7 @@ CONTROLS_PICKLE_FILENAME: str = 'controlsPickle'
 
 TICKS_PER_SECOND: int = 10
 
-UDP_IP: str = '192.168.0.14'
+UDP_IP: str = '192.168.0.20'
 UDP_PORT: int = 5005
 
 
@@ -53,6 +53,9 @@ class Collector:
         while True:
             try:
                 # Save image and controls
+                # TODO: Fix
+                self.robot.right_motor._write_value(float(self.current_controls[0]))
+                self.robot.left_motor._write_value(float(self.current_controls[1]))
                 self.save_frame()
                 self.save_controls()
                 self.frame_index += 1
@@ -61,6 +64,7 @@ class Collector:
                 time.sleep(1. / self.ticks_per_second)
             except KeyboardInterrupt:
                 self.pause()
+                exit(0)
 
     def save_frame(self):
         """Saves a frame into a file in the frames_directory."""
@@ -72,8 +76,9 @@ class Collector:
         """Saves controls from the human-input controller as a left-motor vector and a right-motor vector."""
         data, _ = self.sock.recvfrom(1024)
         self.controls[self.frame_index] = pickle.loads(data)
-        self.current_controls = (self.controls[self.frame_index]['ls_x'], self.controls[self.frame_index]['ls_y'],
-                                 self.controls[self.frame_index]['right_trigger'])
+        self.current_controls = (
+            self.controls[self.frame_index]['motor_right'], self.controls[self.frame_index]['motor_left'])
+        print(data)
 
     def pause(self):
         """Pauses data collection and pickles controls."""
@@ -103,13 +108,13 @@ class Collector:
                         if file > last_frame_name:
                             os.remove(file)
 
-                    self.frame_index = self.controls.keys().sort()[-1] + 1
+                    self.frame_index = len(self.controls)
                     print('Resuming data collection')
 
-                    traitlets.dlink((self.current_controls[0], 'value'), (self.robot.left_motor, 'value'),
-                                    transform=lambda x: -x * self.current_controls[2])
-                    traitlets.dlink((self.current_controls[1], 'value'), (self.robot.right_motor, 'value'),
-                                    transform=lambda x: -x * self.current_controls[2])
+                    # traitlets.dlink((self.current_controls[0], 'value'), (self.robot.right_motor, 'value'),
+                    #                 transform=lambda x: -x)
+                    # traitlets.dlink((self.current_controls[1], 'value'), (self.robot.left_motor, 'value'),
+                    #                 transform=lambda x: -x)
                 except FileNotFoundError:
                     print(f"{self.controls_pickle_filename} not found")
 
@@ -127,10 +132,12 @@ if __name__ == "__main__":
 
     # New dataset
     if 'n' in args.mode:
+        print('Starting new dataset')
         os.makedirs(FRAMES_DIRECTORY, exist_ok=True)
         collector.run_data_collection()
     # Resume on a current dataset in case bad inputs were made
     elif 'r' in args.mode and args.frame:
+        print(f'Resuming from frame {args.frame}')
         os.makedirs(FRAMES_DIRECTORY, exist_ok=True)
         collector.run_data_collection(args.frame)
     else:
