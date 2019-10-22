@@ -23,4 +23,3 @@ def process_image_for_model(img_to_process: np.ndarray):
     resized_array = np.expand_dims(resized_array, axis=2)
     resized_array = np.expand_dims(resized_array, axis=0)
     return resized_array
-
