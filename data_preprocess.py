@@ -11,15 +11,15 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-RAW_DATA_DIR = '../res/training_data/raw/'
+RAW_DATA_DIR = 'res/raw/test1/'
 
-IMAGE_WIDTH: int = 820
-IMAGE_HEIGHT: int = 616
+IMAGE_WIDTH: int = 205
+IMAGE_HEIGHT: int = 154
 
 should_show_first: bool = True
 
 # If set to true will mirror the images to double the dataset
-should_mirror_images: bool = False
+should_mirror_images: bool = True
 
 
 def process_image_for_model(img_to_process: np.ndarray) -> np.ndarray:
@@ -47,34 +47,67 @@ def create_training_data() -> Tuple[List[np.ndarray], List[float]]:
     :return: list of images
     """
     features: List[np.ndarray] = []
-    angles: List[float] = []
+    labels: List[float] = []
 
     # Iterate over each image in the dataset
     for img in tqdm(os.listdir(RAW_DATA_DIR)):
         try:
-            img_array: np.ndarray = cv2.imread(os.path.join(RAW_DATA_DIR, img), cv2.IMREAD_GRAYSCALE)
+            img_array: np.ndarray = cv2.imread(os.path.join(RAW_DATA_DIR, img), cv2.IMREAD_COLOR)
             resized_array: np.ndarray = cv2.resize(img_array, (IMAGE_WIDTH, IMAGE_HEIGHT))
-            features.append(resized_array)
+            gray_array: np.ndarray = cv2.cvtColor(resized_array, cv2.COLOR_BGR2GRAY)
+            features.append(gray_array)
 
             # Get angle value from image filename
-            angle_rad: float = float(search('-(.*)\\.', img).group(1))
-            angles.append(angle_rad)
+            angle_norm = float(search('-(.*)\\.', img).group(1))
+            labels.append(angle_norm)
 
             # Flip image across the vertical axis
             if should_mirror_images:
-                flipped_image: np.ndarray = cv2.flip(resized_array.copy(), 1)
+                flipped_image: np.ndarray = cv2.flip(gray_array.copy(), 1)
                 features.append(flipped_image)
 
                 # Flip angle onto opposite quadrant
-                if angle_rad > np.radians(90):  # Change Quadrant II angle to Quadrant I angle
-                    angle_rad = np.absolute(angle_rad - np.pi)
-                elif np.radians(90) > angle_rad:  # Change Quadrant I angle to Quadrant II angle
-                    angle_rad = np.pi - angle_rad
-                angles.append(angle_rad)
+                labels.append(abs(1 - angle_norm))
         except cv2.error as e:
             print(e)
 
-    return features, angles
+    # Balance data set
+    right_bucket: List[Tuple[np.ndarray, float]] = []
+    center_bucket: List[Tuple[np.ndarray, float]] = []
+    left_bucket: List[Tuple[np.ndarray, float]] = []
+    combined_bucket: List[Tuple[np.ndarray, float]] = []
+    # Place images and their corresponding steering vectors into buckets for balancing
+    for feature, label in zip(features, labels):
+        if label < 0.4:
+            right_bucket.append((feature, label))
+        elif label > 0.6:
+            left_bucket.append((feature, label))
+        else:
+            center_bucket.append((feature, label))
+
+    print(f'Right turn quantity: {len(right_bucket)}')
+    print(f'Center turn quantity: {len(center_bucket)}')
+    print(f'Left turn quantity: {len(left_bucket)}')
+
+    min_size = min(len(right_bucket), len(center_bucket), len(left_bucket))
+
+    # Drop overrepresented straight ahead steering values
+    center_bucket = center_bucket[:min_size]
+
+    combined_bucket.extend(right_bucket)
+    combined_bucket.extend(center_bucket)
+    combined_bucket.extend(left_bucket)
+
+    # Recombine balanced buckets to form final dataset
+    features.clear()
+    labels.clear()
+    for feature, label in combined_bucket:
+        features.append(feature)
+        labels.append(label)
+
+    print(f'Balanced dataset total size: {len(features)}')
+
+    return features, labels
 
 
 def test_prediction():
@@ -109,10 +142,6 @@ if __name__ == '__main__':
     x_train = x_train / 255.0
     x_valid = x_valid / 255.0
 
-    # Convert labels to one-hot array
-    y_train = tf.keras.to_categorical(y_train)
-    y_valid = tf.keras.to_categorical(y_valid)
-
     if should_show_first:
         image_to_show = x_train.copy()
         image_to_show = np.squeeze(image_to_show)[3]
@@ -124,19 +153,19 @@ if __name__ == '__main__':
     print(f'Feature array shape: {x_train.shape}')
 
     # Save data as compressed pickle file
-    pickle_out = open('../res/training_data/compressed/x_train.pickle', 'wb')
+    pickle_out = open('res/compressed/x_train.pickle', 'wb')
     pickle.dump(x_train, pickle_out)
     pickle_out.close()
 
-    pickle_out = open('../res/training_data/compressed/y_train.pickle', 'wb')
+    pickle_out = open('res/compressed/y_train.pickle', 'wb')
     pickle.dump(y_train, pickle_out)
     pickle_out.close()
 
-    pickle_out = open('../res/training_data/compressed/x_valid.pickle', 'wb')
+    pickle_out = open('res/compressed/x_valid.pickle', 'wb')
     pickle.dump(x_valid, pickle_out)
     pickle_out.close()
 
-    pickle_out = open('../res/training_data/compressed/y_valid.pickle', 'wb')
+    pickle_out = open('res/compressed/y_valid.pickle', 'wb')
     pickle.dump(y_valid, pickle_out)
     pickle_out.close()
 
