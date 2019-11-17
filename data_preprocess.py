@@ -132,15 +132,22 @@ if __name__ == '__main__':
     train_features, train_angles = create_training_data()
 
     # Split the data and shuffle it to avoid over-fitting one particular class
-    x_train, x_valid, y_train, y_valid = train_test_split(train_features, train_angles, test_size=0.3,
+    x_train, x_valid, y_train, y_valid = train_test_split(train_features, train_angles, test_size=0.2,
                                                           shuffle=True)
 
-    x_train = np.asarray(x_train)
-    x_valid = np.asarray(x_valid)
+    # Add empty color dimension so input shape matches what Keras expects
+    x_train = np.expand_dims(x_train, axis=-1)
+    x_valid = np.expand_dims(x_valid, axis=-1)
 
     # Normalize features array
     x_train = x_train / 255.0
     x_valid = x_valid / 255.0
+
+    # Convert to numpy arrays with correct data type for TPU
+    x_train = np.asarray(x_train, dtype='float32')
+    x_valid = np.asarray(x_valid, dtype='float32')
+    y_train = np.asarray(y_train, dtype='float32')
+    y_valid = np.asarray(y_valid, dtype='float32')
 
     if should_show_first:
         image_to_show = x_train.copy()
@@ -148,8 +155,6 @@ if __name__ == '__main__':
         plt.imshow(image_to_show, cmap='gray')
         plt.show()
 
-    x_train = np.expand_dims(x_train, axis=3)
-    x_valid = np.expand_dims(x_valid, axis=3)
     print(f'Feature array shape: {x_train.shape}')
 
     # Save data as compressed pickle file
