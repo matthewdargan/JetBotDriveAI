@@ -5,8 +5,8 @@ import numpy as np
 import tensorflow as tf
 
 # Batch size should be a divisor of number of training samples
-batch_size = 181
-num_epochs = 8
+batch_size = 94
+num_epochs = 22
 
 print(f'Running on TensorFlow v.{tf.__version__} with Numpy v.{np.__version__}')
 
@@ -100,7 +100,8 @@ model.fit(
     x_train.astype(np.float32),
     y_train.astype(np.float32),
     epochs=num_epochs,
-    batch_size=batch_size,
+    # batch_size=batch_size,
+    steps_per_epoch=94,
     validation_data=(x_valid.astype(np.float32), y_valid.astype(np.float32))
 )
 
