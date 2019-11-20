@@ -11,7 +11,7 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-RAW_DATA_DIR = 'res/raw/test1/'
+RAW_DATA_DIR: str = 'res/raw/test1/'
 
 IMAGE_WIDTH: int = 205
 IMAGE_HEIGHT: int = 154
@@ -29,7 +29,8 @@ def process_image_for_model(img_to_process: np.ndarray) -> np.ndarray:
     :return: processed image
     """
     # Resize the array to the size standard
-    resized_array: np.ndarray = cv2.resize(img_to_process, (IMAGE_WIDTH, IMAGE_HEIGHT))
+    resized_array: np.ndarray = cv2.resize(img_to_process,
+                                           (IMAGE_WIDTH, IMAGE_HEIGHT))
 
     # Normalize the pixel values
     resized_array = resized_array / 255.0
@@ -39,6 +40,16 @@ def process_image_for_model(img_to_process: np.ndarray) -> np.ndarray:
     resized_array = np.expand_dims(resized_array, axis=0)
 
     return resized_array
+
+
+def normalize_vector(vector: float) -> float:
+    """
+    Normalize the vector angle from the limited trigonometry that the robot
+    can use.
+    :param vector: vector value between 0.25 and 0.75
+    :return: normalized vector value between 0.0 and 1.0
+    """
+    return (vector - 0.25) / 0.5
 
 
 def create_training_data() -> Tuple[List[np.ndarray], List[float]]:
@@ -52,9 +63,12 @@ def create_training_data() -> Tuple[List[np.ndarray], List[float]]:
     # Iterate over each image in the dataset
     for img in tqdm(os.listdir(RAW_DATA_DIR)):
         try:
-            img_array: np.ndarray = cv2.imread(os.path.join(RAW_DATA_DIR, img), cv2.IMREAD_COLOR)
-            resized_array: np.ndarray = cv2.resize(img_array, (IMAGE_WIDTH, IMAGE_HEIGHT))
-            gray_array: np.ndarray = cv2.cvtColor(resized_array, cv2.COLOR_BGR2GRAY)
+            img_array: np.ndarray = cv2.imread(os.path.join(RAW_DATA_DIR, img),
+                                               cv2.IMREAD_COLOR)
+            resized_array: np.ndarray = cv2.resize(img_array,
+                                                   (IMAGE_WIDTH, IMAGE_HEIGHT))
+            gray_array: np.ndarray = cv2.cvtColor(resized_array,
+                                                  cv2.COLOR_BGR2GRAY)
             features.append(gray_array)
 
             # Get angle value from image filename
@@ -71,41 +85,7 @@ def create_training_data() -> Tuple[List[np.ndarray], List[float]]:
         except cv2.error as e:
             print(e)
 
-    # Balance data set
-    right_bucket: List[Tuple[np.ndarray, float]] = []
-    center_bucket: List[Tuple[np.ndarray, float]] = []
-    left_bucket: List[Tuple[np.ndarray, float]] = []
-    combined_bucket: List[Tuple[np.ndarray, float]] = []
-    # Place images and their corresponding steering vectors into buckets for balancing
-    for feature, label in zip(features, labels):
-        if label < 0.4:
-            right_bucket.append((feature, label))
-        elif label > 0.6:
-            left_bucket.append((feature, label))
-        else:
-            center_bucket.append((feature, label))
-
-    print(f'Right turn quantity: {len(right_bucket)}')
-    print(f'Center turn quantity: {len(center_bucket)}')
-    print(f'Left turn quantity: {len(left_bucket)}')
-
-    min_size = min(len(right_bucket), len(center_bucket), len(left_bucket))
-
-    # Drop overrepresented straight ahead steering values
-    center_bucket = center_bucket[:min_size]
-
-    combined_bucket.extend(right_bucket)
-    combined_bucket.extend(center_bucket)
-    combined_bucket.extend(left_bucket)
-
-    # Recombine balanced buckets to form final dataset
-    features.clear()
-    labels.clear()
-    for feature, label in combined_bucket:
-        features.append(feature)
-        labels.append(label)
-
-    print(f'Balanced dataset total size: {len(features)}')
+    labels = [normalize_vector(label) for label in labels]
 
     return features, labels
 
@@ -114,8 +94,10 @@ def test_prediction():
     """Tests a single prediction the regression model made."""
     image_number = 120
     model_name = 'optimized_regression.model'
-    regression_model: tf.keras.Model = tf.keras.load_model(f'../models/steering_vector/{model_name}')
-    file_image = cv2.imread(os.path.join(RAW_DATA_DIR, f'{image_number}.png'), cv2.IMREAD_GRAYSCALE)
+    regression_model: tf.keras.Model = tf.keras.load_model(
+        f'../models/steering_vector/{model_name}')
+    file_image = cv2.imread(os.path.join(RAW_DATA_DIR, f'{image_number}.png'),
+                            cv2.IMREAD_GRAYSCALE)
     processed_image = process_image_for_model(file_image)
 
     print(f'Processed image shape: {processed_image.shape}')
@@ -132,7 +114,9 @@ if __name__ == '__main__':
     train_features, train_angles = create_training_data()
 
     # Split the data and shuffle it to avoid over-fitting one particular class
-    x_train, x_valid, y_train, y_valid = train_test_split(train_features, train_angles, test_size=0.2,
+    x_train, x_valid, y_train, y_valid = train_test_split(train_features,
+                                                          train_angles,
+                                                          test_size=0.2,
                                                           shuffle=True)
 
     # Add empty color dimension so input shape matches what Keras expects
